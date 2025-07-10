@@ -1,19 +1,24 @@
-from backend.face_recognition_utils.load_detectors import load_models
 from backend.face_recognition_utils.utils import save_embeddings
 import cv2
 import numpy as np
 import os
-import time  # for delay
+import time
 
 def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=18):
     cap = cv2.VideoCapture(2)
+
     if not cap.isOpened():
         print("[ERROR] Could not open webcam.")
         return
 
     embeddings = []
-    print("[INFO] Press 'c' to start capturing. Press 'q' to quit.")
+    current_stage = 0
     capturing = False
+    total_stages = required // 3
+
+    print(f"You're about to capture {required} embeddings in {total_stages} stages.")
+    print("Each stage captures 3 encodings.")
+    print("Press 'c' to start capturing each stage. Press 'q' to quit anytime.")
 
     while True:
         ret, frame = cap.read()
@@ -23,7 +28,7 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=
 
         frame_display = frame.copy()
 
-        if capturing and len(embeddings) < required:
+        if capturing:
             results = yolo(frame, conf=0.3)[0]
             faces = arcface.get(frame)
 
@@ -38,26 +43,40 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=
                             embeddings.append(np.array(emb).flatten().tolist())
 
                             cv2.rectangle(frame_display, (fx1, fy1), (fx2, fy2), (0, 255, 0), 2)
-                            cv2.putText(frame_display, f"Captured {len(embeddings)}", (fx1, fy1 - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                            cv2.putText(frame_display,
+                                        f"Captured {len(embeddings)} / {required}",
+                                        (fx1, fy1 - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                                        0.8, (0, 255, 0), 2)
+                            time.sleep(1)  # Delay between each capture
                             break
 
-            if len(embeddings) % 3 == 0 and len(embeddings) < required:
-                print(f"[INFO] {len(embeddings)} embeddings captured. Waiting 5 seconds...")
-                time.sleep(5)
+            if len(embeddings) >= (current_stage + 1) * 3:
+                capturing = False
+                current_stage += 1
 
-            if len(embeddings) >= required:
-                print("[INFO] Required number of embeddings captured.")
-                break
+                print(f"[INFO] Captured {len(embeddings)} encodings so far.")
+                if len(embeddings) < required:
+                    print("[NEXT STEP] Please change your pose or angle.")
+                    print("👉 Press 'n' to capture next set of 3 embeddings.")
+                else:
+                    print("[INFO] All required embeddings captured.")
+                    break
 
-        cv2.putText(frame_display, "Press 'c' to start capture | 'q' to quit",
+        cv2.putText(frame_display, f"Stage: {current_stage+1}/{total_stages} | Captured: {len(embeddings)}",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame_display, "Press 'c' to capture | 'n' for next stage | 'q' to quit",
+                    (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+
         cv2.imshow("Enroll Student", frame_display)
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord('c') and not capturing:
             capturing = True
-            print("[INFO] Capture started...")
+            print(f"[INFO] Stage {current_stage+1}: Starting capture...")
+        elif key == ord('n') and not capturing and len(embeddings) == current_stage * 3:
+            print("[INFO] Get ready... Starting in 5 seconds.")
+            time.sleep(5)
+            capturing = True
         elif key == ord('q'):
             break
 
@@ -73,6 +92,12 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=
     else:
         print("[ERROR] No embeddings captured.")
 
+    return {
+        "student_id": student_id,
+        "name": name,
+        "class": student_class,
+        "embeddings": embeddings
+    }
 
 def enroll_from_images(yolo, arcface, student_id, name, student_class, image_dir):
     if not os.path.exists(image_dir):
@@ -116,20 +141,4 @@ def enroll_from_images(yolo, arcface, student_id, name, student_class, image_dir
     else:
         print("[ERROR] No embeddings captured.")
 
-if __name__ == "__main__":
-    img_dir = os.path.join(os.path.dirname(__file__), '..', 'images')
-    img_dir = os.path.abspath(img_dir)
 
-    mode = input("Enroll from (1) Webcam or (2) Images? [1/2]: ").strip()
-    sid = input("Enter 4-digit Student ID: ")
-    name = input("Enter Full Name: ")
-    cls = input("Enter Class (e.g., 11A): ")
-
-    yolo, arcface, _ = load_models()
-
-    if mode == "1":
-        enroll_from_webcam(yolo, arcface, sid, name, cls)
-    elif mode == "2":
-        enroll_from_images(yolo, arcface, sid, name, cls, img_dir)
-    else:
-        print("[ERROR] Invalid selection.")
