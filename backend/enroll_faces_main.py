@@ -22,7 +22,7 @@ if __name__ == '__main__':
                     "class": enrollment_data["class"],
                     "embeddings": f"{sid}_{name.replace(' ', '_')}.json",
              }
-             db.collection("enrollments").document(sid).set(data)
+             db.collection("students").document(sid).set(data)
     elif mode == "2":
         enroll_from_images(yolo, arcface, sid, name, cls, img_dir)
     else:

@@ -63,5 +63,5 @@ def recognize_faces_from_image(image_path):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
     headcount = len(seen_ids) + unknown_count
-    print(f"[SUMMARY] Known: {len(seen_ids)} | Unknown: {unknown_count} | Total: {headcount}")
+    print(f"[SUMMARY] Known: {len(seen_ids)} | Unknown: {unknown_count} | Total In Frame: {headcount}")
     return image, headcount, seen_ids, unknown_count

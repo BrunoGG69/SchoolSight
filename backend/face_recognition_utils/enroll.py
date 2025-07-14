@@ -74,8 +74,8 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=
             capturing = True
             print(f"[INFO] Stage {current_stage+1}: Starting capture...")
         elif key == ord('n') and not capturing and len(embeddings) == current_stage * 3:
-            print("[INFO] Get ready... Starting in 5 seconds.")
-            time.sleep(5)
+            print("[INFO] Get ready... Starting in 2 seconds.")
+            time.sleep(2)
             capturing = True
         elif key == ord('q'):
             break
