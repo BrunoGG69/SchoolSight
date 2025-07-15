@@ -16,12 +16,12 @@ def load_enrollments():
         if file.endswith(".json"):
             with open(os.path.join(ENROLLMENTS_DIR, file), 'r') as f:
                 data = json.load(f)
-                for emb in data["encodings"]:
+                for face_embeddings in data["encodings"]:
                     known_faces.append({
                         "name": data["name"],
                         "class": data["class"],
                         "student_id": data["student_id"],
-                        "embedding": emb
+                        "embedding": face_embeddings
                     })
     return known_faces
 
