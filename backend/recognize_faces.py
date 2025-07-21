@@ -1,56 +1,56 @@
 import os
 from datetime import datetime
 import cv2
+import cloudinary
+import cloudinary.api
 import cloudinary.uploader
+import requests
 from google.cloud import firestore
 from face_recognition_utils.recognize import recognize_faces_from_image
 from firebase_utils import db
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv('CLOUD_API_KEY'),
-    api_secret=os.getenv('CLOUD_API_SECRET')
+    api_key=os.getenv("CLOUD_API_KEY"),
+    api_secret=os.getenv("CLOUD_API_SECRET")
 )
 
-# Create directory to save images
-save_dir = "captured_images"
-os.makedirs(save_dir, exist_ok=True)
+# Create directory to save fetched images
+fetched_dir = "fetched_images"
+os.makedirs(fetched_dir, exist_ok=True)
 
-# Capture image from webcam
-cap = cv2.VideoCapture(2)
-if not cap.isOpened():
-    print("[ERROR] Could not access webcam.")
+# Fetch latest image from Cloudinary folder "captured_images"
+print("[📥] Fetching latest image from Cloudinary...")
+resources = cloudinary.api.resources(type="upload", prefix="captured_images/", max_results=1, direction="desc")
+if not resources['resources']:
+    print("[❌] No images found in Cloudinary folder 'captured_images/'")
     exit()
 
-ret, frame = cap.read()
-cap.release()
+image_data = resources['resources'][0]
+image_url = image_data['secure_url']
+image_public_id = image_data['public_id']
 
-if not ret:
-    print("[ERROR] Failed to capture frame.")
-    exit()
-
-# Save temporary image
+# Download the image
+image_resp = requests.get(image_url)
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-temp_path = os.path.join(save_dir, "temp.jpg")
-cv2.imwrite(temp_path, frame)
+local_path = os.path.join(fetched_dir, f"{timestamp}.jpg")
+with open(local_path, 'wb') as f:
+    f.write(image_resp.content)
+print(f"[📁] Downloaded: {local_path}")
 
-# Face recognition using custom-made package
-image_with_boxes, headcount, known_ids, unknowns = recognize_faces_from_image(temp_path)
+# Run face recognition
+image_with_boxes, headcount, known_ids, unknowns = recognize_faces_from_image(local_path)
 
-# Save final processed image
-final_img_path = os.path.join(save_dir, f"attendance_{timestamp}.jpg")
-cv2.imwrite(final_img_path, image_with_boxes)
-os.remove(temp_path)  # remove temporary image
-
-# Upload Image to Cloudinary
-upload_result = cloudinary.uploader.upload(final_img_path, folder="attendance_logs")
-image_url = upload_result.get("secure_url")
-print(f"[☁️] Uploaded to Cloudinary: {image_url}")
+# Save image with boxes (optional)
+processed_path = os.path.join(fetched_dir, f"processed_{timestamp}.jpg")
+cv2.imwrite(processed_path, image_with_boxes)
 
 # Log Attendance on Firestore
 timestamp_for_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+print(f"[🧠] Headcount: {headcount} | Known: {known_ids} | Unknowns: {unknowns}")
 
 # Mark Present Students
 for student_id in known_ids:
@@ -102,7 +102,7 @@ if known_ids:
 else:
     print("[INFO] No students detected. Skipping absentee marking.")
 
-# Display the processed images for 5 seconds
+# Show the image
 cv2.imshow("Recognition Result", image_with_boxes)
 cv2.waitKey(5000)
 cv2.destroyAllWindows()
