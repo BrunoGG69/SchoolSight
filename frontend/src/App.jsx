@@ -1,38 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-
-const compressImage = (file, maxWidth) => {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      image.src = e.target.result;
-    };
-
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      const scaleFactor = maxWidth / image.width;
-      canvas.width = maxWidth;
-      canvas.height = image.height * scaleFactor;
-
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(
-        (blob) => {
-          resolve(blob);
-        },
-        "image/jpeg",
-        0.7 // Compression quality
-      );
-    };
-
-    image.onerror = (e) => reject("Image load error: " + e);
-    reader.onerror = (e) => reject("File read error: " + e);
-    reader.readAsDataURL(file);
-  });
-};
+import './index.css'; // make sure this is here
 
 const App = () => {
   const [imageUrl, setImageUrl] = useState(null);
@@ -50,18 +18,14 @@ const App = () => {
     }
 
     setUploading(true);
-    setMessage("📉 Compressing...");
+    setMessage("📤 Uploading...");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+    formData.append("folder", "captured_images");
 
     try {
-      const compressedBlob = await compressImage(file, 1024); // Resize to 1024px max width
-
-      const formData = new FormData();
-      formData.append("file", compressedBlob);
-      formData.append("upload_preset", uploadPreset);
-      formData.append("folder", "captured_images");
-
-      setMessage("☁️ Uploading to Cloudinary...");
-
       const res = await axios.post(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         formData
@@ -69,13 +33,13 @@ const App = () => {
 
       if (res.data.secure_url) {
         setImageUrl(res.data.secure_url);
-        setMessage("✅ Image uploaded successfully!");
+        setMessage("✅ Image uploaded successfully.");
         console.log("Image URL:", res.data.secure_url);
       } else {
-        throw new Error("Upload failed: No URL returned.");
+        throw new Error("Upload failed. No secure URL returned.");
       }
     } catch (err) {
-      console.error("Upload error:", err);
+      console.error("Upload error:", err.response?.data || err.message);
       setMessage("❌ Upload failed: " + (err.response?.data?.error?.message || err.message));
     } finally {
       setUploading(false);
@@ -83,8 +47,8 @@ const App = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
-      <h1 className="text-2xl font-bold mb-6">Upload Classroom Photo</h1>
+    <div>
+      <h1>📸 Smart Camera Upload</h1>
 
       <label className="w-full max-w-sm">
         <input
@@ -94,21 +58,19 @@ const App = () => {
           onChange={handleImageUpload}
           className="hidden"
         />
-        <div className="w-full p-4 text-center border-2 border-dashed rounded-lg cursor-pointer hover:border-blue-400">
-          {uploading ? "Uploading..." : "Tap to Open Camera"}
-        </div>
+        <div>{uploading ? "Uploading..." : "Tap to Open Camera"}</div>
       </label>
 
-      {message && <p className="mt-4 text-sm">{message}</p>}
+      {message && <p className="message">{message}</p>}
 
       {imageUrl && (
         <div className="mt-6 text-center">
-          <img src={imageUrl} alt="Uploaded" className="w-64 h-auto rounded-md mx-auto shadow-lg" />
+          <img src={imageUrl} alt="Uploaded" className="uploaded" />
           <a
             href={imageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block mt-2 text-blue-400 underline break-all"
+            className="image-link"
           >
             {imageUrl}
           </a>

@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* You can add any global custom styles below */
+body {
+  @apply bg-black text-white flex flex-col items-center justify-center min-h-screen p-4;
+}
+
+h1 {
+  @apply text-2xl font-bold mb-6;
+}
+
+input[type="file"] + div {
+  @apply w-full p-4 text-center border-2 border-dashed rounded-lg cursor-pointer hover:border-blue-400;
+}
+
+p.message {
+  @apply mt-4 text-sm;
+}
+
+img.uploaded {
+  @apply w-64 h-auto rounded-md mx-auto shadow-lg;
+}
+
+a.image-link {
+  @apply block mt-2 text-blue-400 underline break-all;
+}
