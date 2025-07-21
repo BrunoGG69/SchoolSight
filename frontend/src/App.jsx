@@ -1,107 +1,115 @@
-import React, { useRef, useState, useEffect } from 'react';
-import Webcam from 'react-webcam';
+import React, { useState } from 'react';
 import axios from 'axios';
 
-const WebcamUploader = () => {
-  const webcamRef = useRef(null);
-  const [devices, setDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
-  const [uploading, setUploading] = useState(false);
+const compressImage = (file, maxWidth) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      image.src = e.target.result;
+    };
+
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const scaleFactor = maxWidth / image.width;
+      canvas.width = maxWidth;
+      canvas.height = image.height * scaleFactor;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(
+        (blob) => {
+          resolve(blob);
+        },
+        "image/jpeg",
+        0.7 // Compression quality
+      );
+    };
+
+    image.onerror = (e) => reject("Image load error: " + e);
+    reader.onerror = (e) => reject("File read error: " + e);
+    reader.readAsDataURL(file);
+  });
+};
+
+const App = () => {
   const [imageUrl, setImageUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState('');
 
-  // Get available video input devices
-  useEffect(() => {
-    navigator.mediaDevices.enumerateDevices()
-      .then(mediaDevices => {
-        const videoDevices = mediaDevices.filter(device => device.kind === 'videoinput');
-        setDevices(videoDevices);
-        if (videoDevices.length > 0) {
-          setSelectedDeviceId(videoDevices[0].deviceId); // Default to first
-        }
-      });
-  }, []);
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
-  const captureAndUpload = async () => {
-    if (!webcamRef.current) return;
-
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) return alert("Could not capture image.");
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) {
+      setMessage("❌ No image selected.");
+      return;
+    }
 
     setUploading(true);
-
-    const blob = await fetch(imageSrc).then(res => res.blob());
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-    const formData = new FormData();
-    formData.append('file', blob);
-    formData.append('upload_preset', 'unsigned'); // Remove if using signed upload
-    formData.append('folder', 'captured_images');
-    formData.append('public_id', `attendance_${timestamp}`);
-
-    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-    const apiKey = import.meta.env.VITE_CLOUDINARY_API_KEY;
-    const apiSecret = import.meta.env.VITE_CLOUDINARY_API_SECRET;
-
-    const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+    setMessage("📉 Compressing...");
 
     try {
-      const response = await axios.post(url, formData, {
-        auth: {
-          username: apiKey,
-          password: apiSecret
-        }
-      });
+      const compressedBlob = await compressImage(file, 1024); // Resize to 1024px max width
 
-      setImageUrl(response.data.secure_url);
-      console.log("✅ Uploaded:", response.data.secure_url);
-    } catch (error) {
-      console.error("❌ Upload failed:", error);
-      alert("Upload failed.");
+      const formData = new FormData();
+      formData.append("file", compressedBlob);
+      formData.append("upload_preset", uploadPreset);
+      formData.append("folder", "captured_images");
+
+      setMessage("☁️ Uploading to Cloudinary...");
+
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        formData
+      );
+
+      if (res.data.secure_url) {
+        setImageUrl(res.data.secure_url);
+        setMessage("✅ Image uploaded successfully!");
+        console.log("Image URL:", res.data.secure_url);
+      } else {
+        throw new Error("Upload failed: No URL returned.");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      setMessage("❌ Upload failed: " + (err.response?.data?.error?.message || err.message));
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4">
-      <label className="text-sm font-semibold">
-        Select Camera:
-        <select
-          className="ml-2 border px-2 py-1 rounded"
-          value={selectedDeviceId}
-          onChange={(e) => setSelectedDeviceId(e.target.value)}
-        >
-          {devices.map((device, idx) => (
-            <option key={idx} value={device.deviceId}>
-              {device.label || `Camera ${idx + 1}`}
-            </option>
-          ))}
-        </select>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
+      <h1 className="text-2xl font-bold mb-6">Upload Classroom Photo</h1>
+
+      <label className="w-full max-w-sm">
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleImageUpload}
+          className="hidden"
+        />
+        <div className="w-full p-4 text-center border-2 border-dashed rounded-lg cursor-pointer hover:border-blue-400">
+          {uploading ? "Uploading..." : "Tap to Open Camera"}
+        </div>
       </label>
 
-      <Webcam
-        audio={false}
-        ref={webcamRef}
-        screenshotFormat="image/jpeg"
-        videoConstraints={{
-          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        }}
-        className="rounded-md border shadow-md"
-        width={400}
-      />
-
-      <button
-        onClick={captureAndUpload}
-        className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        disabled={uploading}
-      >
-        {uploading ? "Uploading..." : "Capture & Upload"}
-      </button>
+      {message && <p className="mt-4 text-sm">{message}</p>}
 
       {imageUrl && (
-        <div className="mt-4">
-          <p className="text-green-600">Image Uploaded:</p>
-          <a href={imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 underline">
+        <div className="mt-6 text-center">
+          <img src={imageUrl} alt="Uploaded" className="w-64 h-auto rounded-md mx-auto shadow-lg" />
+          <a
+            href={imageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-2 text-blue-400 underline break-all"
+          >
             {imageUrl}
           </a>
         </div>
@@ -110,4 +118,4 @@ const WebcamUploader = () => {
   );
 };
 
-export default WebcamUploader;
+export default App;

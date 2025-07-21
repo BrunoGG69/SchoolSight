@@ -8,6 +8,7 @@ const WebcamUploader = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [uploading, setUploading] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
+  const [error, setError] = useState('');
 
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -21,46 +22,52 @@ const WebcamUploader = () => {
         if (videoDevices.length > 0) {
           setSelectedDeviceId(videoDevices[0].deviceId); // Default to first
         }
+      }).catch(err => {
+        console.error("Error getting cameras:", err);
+        setError("Camera access denied or not supported.");
       });
   }, []);
 
   const captureAndUpload = async () => {
+    setError('');
     if (!webcamRef.current) return;
 
     const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) return alert("Could not capture image.");
+    if (!imageSrc) return setError("Could not capture image.");
 
     setUploading(true);
 
-    const blob = await fetch(imageSrc).then(res => res.blob());
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-    const formData = new FormData();
-    formData.append('file', blob);
-    formData.append('upload_preset', uploadPreset);
-    formData.append('folder', 'captured_images');
-    formData.append('public_id', `attendance_${timestamp}`);
-
-    const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-
     try {
+      const blob = await fetch(imageSrc).then(res => res.blob());
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+      const formData = new FormData();
+      formData.append('file', blob);
+      formData.append('upload_preset', uploadPreset);
+      formData.append('folder', 'captured_images');
+      formData.append('public_id', `attendance_${timestamp}`);
+
+      const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
       const response = await axios.post(url, formData);
       setImageUrl(response.data.secure_url);
       console.log("✅ Uploaded:", response.data.secure_url);
     } catch (error) {
-      console.error("❌ Upload failed:", error);
-      alert("Upload failed.");
+      console.error("❌ Upload failed:", error.response?.data || error.message);
+      setError("Upload failed: " + (error.response?.data?.error?.message || error.message));
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4">
-      <label className="text-sm font-semibold">
+    <div className="flex flex-col items-center gap-4 p-4 min-h-screen bg-black text-white">
+      <h1 className="text-2xl font-semibold">📷 Smart Camera</h1>
+
+      <label className="text-sm">
         Select Camera:
         <select
-          className="ml-2 border px-2 py-1 rounded"
+          className="ml-2 border px-2 py-1 rounded text-black"
           value={selectedDeviceId}
           onChange={(e) => setSelectedDeviceId(e.target.value)}
         >
@@ -85,18 +92,24 @@ const WebcamUploader = () => {
 
       <button
         onClick={captureAndUpload}
-        className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        className="px-6 py-2 mt-4 bg-green-600 text-white rounded hover:bg-green-700"
         disabled={uploading}
       >
-        {uploading ? "Uploading..." : "Capture & Upload"}
+        {uploading ? "Uploading..." : "📤 Capture & Upload"}
       </button>
 
       {imageUrl && (
         <div className="mt-4 text-center">
-          <p className="text-green-600 font-medium">✅ Image Uploaded:</p>
-          <a href={imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 underline">
+          <p className="text-green-400 font-medium">✅ Uploaded Successfully:</p>
+          <a href={imageUrl} target="_blank" rel="noreferrer" className="text-blue-400 underline break-all">
             {imageUrl}
           </a>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 text-red-400">
+          <strong>⚠️ Error:</strong> {error}
         </div>
       )}
     </div>
