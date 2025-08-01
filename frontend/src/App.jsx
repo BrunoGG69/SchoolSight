@@ -22,7 +22,7 @@ const App = () => {
   const [message, setMessage] = useState('');
 
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const apiKey = import.meta.env.VITE_CLOUDINARY_API_KEY;
+  const apiKey = import.meta.env.CLOUDINARY_API_KEY;
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
