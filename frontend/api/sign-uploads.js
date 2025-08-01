@@ -1,8 +1,11 @@
 import crypto from 'crypto';
 
 export default async function handler(req, res) {
-  const { timestamp, folder } = req.query;
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
+  const { timestamp, folder } = req.query;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
   if (!timestamp || !folder || !apiSecret) {
