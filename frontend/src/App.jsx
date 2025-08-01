@@ -3,7 +3,7 @@ import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc } from 'firebase/firestore';
 
-// ✅ Firebase Config using correct env variable names
+// Firebase Config
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -21,8 +21,9 @@ const App = () => {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Cloudinary config from env
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const apiKey = import.meta.env.CLOUDINARY_API_KEY;
+  const apiKey = import.meta.env.VITE_CLOUDINARY_API_KEY;
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
