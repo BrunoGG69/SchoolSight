@@ -3,10 +3,10 @@ import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc } from 'firebase/firestore';
 
-// ✅ Firebase Config
+// ✅ Firebase Config using correct env variable names
 const firebaseConfig = {
-  apiKey: import.meta.env.FIREBASE_API_KEY,
-  authDomain: import.meta.env.FIREBASE_AUTH_DOMAIN,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
@@ -22,6 +22,7 @@ const App = () => {
   const [message, setMessage] = useState('');
 
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const apiKey = import.meta.env.VITE_CLOUDINARY_API_KEY;
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
@@ -34,13 +35,12 @@ const App = () => {
     setMessage("📤 Requesting signed upload...");
 
     try {
-      // ✅ Get signature from correct endpoint
-      const { data } = await axios.get('/api/sign-uploads');
+      const { data } = await axios.get('https://upload.brunogg.in/api/sign-uploads');
       const { signature, timestamp } = data;
 
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("api_key", import.meta.env.VITE_CLOUDINARY_API_KEY);
+      formData.append("api_key", apiKey);
       formData.append("signature", signature);
       formData.append("timestamp", timestamp);
       formData.append("folder", "captured_images");
@@ -56,14 +56,14 @@ const App = () => {
       setImageUrl(secureUrl);
       setMessage("✅ Image uploaded.");
 
-      // ✅ Log to Firestore
       const uploadedAt = new Date().toISOString();
+
       await addDoc(collection(db, 'uploads'), {
         image_url: secureUrl,
         uploaded_at: uploadedAt,
-        user_id: 'anonymous',  // You can replace this with actual user id
+        user_id: 'anonymous',
         status: 'pending',
-        processed_url: null
+        processed_url: null,
       });
 
       setMessage("✅ Logged in Firestore.");
