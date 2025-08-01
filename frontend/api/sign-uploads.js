@@ -1,10 +1,7 @@
+// /api/sign-uploads.js
 import crypto from 'crypto';
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export default function handler(req, res) {
   const { timestamp, folder } = req.query;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
@@ -18,5 +15,5 @@ export default async function handler(req, res) {
     .update(paramsToSign + apiSecret)
     .digest('hex');
 
-  return res.status(200).json({ signature, timestamp });
+  return res.status(200).json({ signature });
 }
