@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { db } from "./firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore"; // Updated from addDoc to setDoc
 
 function App() {
   const [statusMessage, setStatusMessage] = useState("");
@@ -17,9 +17,11 @@ function App() {
     try {
       const timestamp = Math.floor(Date.now() / 1000);
       const folder = "captured_images";
+      const publicId = `preprocessed_${timestamp}_${Math.random().toString(36).slice(2, 6)}`;
 
+      // Get signed upload signature from backend
       const sigRes = await fetch(
-        `${import.meta.env.VITE_SIGNATURE_API}/sign-uploads?timestamp=${timestamp}&folder=${folder}`
+        `${import.meta.env.VITE_SIGNATURE_API}/sign-uploads?timestamp=${timestamp}&folder=${folder}&public_id=${publicId}`
       );
       const sigData = await sigRes.json();
       if (!sigRes.ok) throw new Error(sigData.error || "Failed to get signature");
@@ -31,6 +33,7 @@ function App() {
       formData.append("timestamp", sigData.timestamp);
       formData.append("signature", sigData.signature);
       formData.append("folder", folder);
+      formData.append("public_id", publicId);
 
       const cloudRes = await fetch(
         `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -45,8 +48,8 @@ function App() {
       setStatusMessage("✅ Uploaded to Cloudinary.");
       setStatusType("success");
 
-      // Write to Firestore directly
-      await addDoc(collection(db, "uploads"), {
+      // Write metadata to Firestore using publicId as the document ID
+      await setDoc(doc(db, "uploads", publicId), {
         imageUrl: cloudData.secure_url,
         uploadedAt: new Date().toISOString(),
         folder: folder,
