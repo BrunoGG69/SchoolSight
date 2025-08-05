@@ -11,6 +11,7 @@ def load_models():
     yolo.to(device)
 
     arcface = insightface.app.FaceAnalysis(name='buffalo_l')
-    arcface.prepare(ctx_id=0 if device == 'CUDA' else -1)
+    ctx_id = 0 if torch.cuda.is_available() else -1
+    arcface.prepare(ctx_id=ctx_id)
 
     return yolo, arcface, device

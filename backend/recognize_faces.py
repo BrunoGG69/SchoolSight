@@ -1,8 +1,6 @@
 import os
 from datetime import datetime
 import cv2
-import cloudinary
-import cloudinary.api
 import cloudinary.uploader
 import requests
 import uuid
@@ -21,45 +19,45 @@ cloudinary.config(
 )
 
 # Firestore reference
-uploads_ref = db.collection("uploads")
+image_uploads = db.collection("uploads")
 
 # Query pending uploads
-pending_docs = uploads_ref.where("status", "==", "pending").stream()
-pending_docs = list(pending_docs)
+pending_images = image_uploads.where("status", "==", "pending").stream()
+pending_images = list(pending_images)
 
-if not pending_docs:
+if not pending_images:
     print("[✅] No pending uploads found.")
     exit()
 
 # Prepare local directories
-fetched_dir = "fetched_images"
-os.makedirs(fetched_dir, exist_ok=True)
+tempStore = "tempStore"
+os.makedirs(tempStore, exist_ok=True)
 
-for doc in pending_docs:
-    doc_id = doc.id
-    data = doc.to_dict()
-    image_url = data.get("image_url")
+for items in pending_images:
+    items_id = items.id
+    data = items.to_dict()
+    image_url = data.get("imageUrl")
 
     if not image_url:
-        print(f"[❌] No image_url in document: {doc_id}")
+        print(f"No image_url in document: {items_id}")
         continue
 
-    print(f"[📥] Processing: {doc_id} | URL: {image_url}")
+    print(f"Processing: {items_id} | URL: {image_url}")
 
     # Download image
     response = requests.get(image_url)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    local_path = os.path.join(fetched_dir, f"{uuid.uuid4()}.jpg")
+    local_path = os.path.join(tempStore, f"{uuid.uuid4()}.jpg")
     with open(local_path, 'wb') as f:
         f.write(response.content)
-    print(f"[📁] Downloaded to: {local_path}")
+    print(f"Downloaded to: {local_path}")
 
-    # Run face recognition
+    # Start the face recognition process
     image_with_boxes, headcount, known_ids, unknowns = recognize_faces_from_image(local_path)
     print(f"[🧠] Headcount: {headcount} | Known: {known_ids} | Unknown: {unknowns}")
 
     # Save processed image
-    processed_path = os.path.join(fetched_dir, f"processed_{timestamp}.jpg")
+    processed_path = os.path.join(tempStore, f"processed_{timestamp}.jpg")
     cv2.imwrite(processed_path, image_with_boxes)
 
     # Upload processed image to Cloudinary
@@ -115,17 +113,17 @@ for doc in pending_docs:
         print("[ℹ️] No students detected. Skipping absentee marking.")
 
     # Update upload document status
-    uploads_ref.document(doc_id).update({
+    image_uploads.document(items_id).update({
         "status": "processed",
         "processed_image_url": processed_image_url,
         "headcount": headcount,
         "processed_at": firestore.SERVER_TIMESTAMP
     })
-    print(f"[✅] Upload {doc_id} marked as processed.")
+    print(f"[✅] Upload {items_id} marked as processed.")
 
     # Clean up local files
     os.remove(local_path)
     os.remove(processed_path)
-    print(f"[🧹] Cleaned up local files.\n")
+    print(f"Cleaned up local files.\n")
 
 print("[🎉] All pending uploads processed.")
