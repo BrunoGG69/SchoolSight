@@ -1,21 +1,24 @@
 import os
 import cv2
-import json
 import numpy as np
 from scipy.spatial.distance import cosine
 from backend.face_recognition_utils.load_detectors import load_models
+import simdjson
 
-THRESHOLD = 0.5
+THRESHOLD = 0.6
 ENROLLMENTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'enrollments')
 ENROLLMENTS_DIR = os.path.abspath(ENROLLMENTS_DIR)
 yolo, arcface, _ = load_models()
 
 def load_enrollments():
     known_faces = []
+    parser = simdjson.Parser()  # NEW
+
     for file in os.listdir(ENROLLMENTS_DIR):
         if file.endswith(".json"):
-            with open(os.path.join(ENROLLMENTS_DIR, file), 'r') as f:
-                data = json.load(f)
+            file_path = os.path.join(ENROLLMENTS_DIR, file)
+            with open(file_path, "rb") as f:
+                data = parser.parse(f.read()).as_dict()
                 for face_embeddings in data["encodings"]:
                     known_faces.append({
                         "name": data["name"],
