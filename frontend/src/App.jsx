@@ -1,6 +1,137 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  setDoc,
+  onSnapshot,
+  getDocs
+} from "firebase/firestore";
+import { motion, AnimatePresence } from "framer-motion";
+
+// Collapsible with animation
+function Collapsible({ title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mb-6">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-5 py-3 rounded-2xl font-semibold text-white
+                   bg-white/10 backdrop-blur-md border border-white/20 shadow-lg
+                   hover:bg-white/20 transition-all duration-300"
+      >
+        <span className={`transition-transform duration-300 ${open ? "rotate-90" : ""}`}>▶</span>
+        {title}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-4 mt-2 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-inner"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Blobs background component
+function AnimatedBlobs({ blobCount = 6, blur = 140, maxSize = 700 }) {
+  const containerRef = useRef(null);
+  const blobsRef = useRef([]);
+  const rafRef = useRef(null);
+  const prefersReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // initialize blobs data
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const colors = ["#FF4D4F", "#4DA6FF", "#FFDA4D"]; // red, blue, yellow
+
+    const blobs = Array.from({ length: blobCount }).map((_, i) => {
+      const size = Math.round((Math.random() * 0.6 + 0.25) * maxSize); // 0.25 - 0.85 of maxSize
+      const x = Math.random() * rect.width;
+      const y = Math.random() * rect.height;
+      const vx = (Math.random() - 0.5) * (prefersReduced ? 0.1 : 0.6); // velocity
+      const vy = (Math.random() - 0.5) * (prefersReduced ? 0.1 : 0.6);
+      const color = colors[i % colors.length];
+      const opacity = Math.random() * 0.35 + 0.15; // 0.15 - 0.5
+      return { x, y, vx, vy, size, color, opacity };
+    });
+
+    // create DOM elements
+    blobsRef.current = blobs.map((b, idx) => {
+      const el = document.createElement('div');
+      el.className = 'blob-animated';
+      el.style.position = 'absolute';
+      el.style.left = '0px';
+      el.style.top = '0px';
+      el.style.pointerEvents = 'none';
+      el.style.width = `${b.size}px`;
+      el.style.height = `${b.size}px`;
+      el.style.borderRadius = '50%';
+      el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+      el.style.background = `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.12), transparent 25%), radial-gradient(circle at 70% 70%, rgba(255,255,255,0.06), transparent 40%), ${b.color}`;
+      el.style.opacity = `${b.opacity}`;
+      el.style.filter = `blur(${Math.round(blur / 4)}px)`; // inner element slightly blurred to soften edges
+      el.style.mixBlendMode = 'screen';
+      container.appendChild(el);
+      return { el, data: b };
+    });
+
+    // animation loop
+    function step() {
+      const bounds = container.getBoundingClientRect();
+      blobsRef.current.forEach(item => {
+        const d = item.data;
+        d.x += d.vx;
+        d.y += d.vy;
+
+        // bounce at edges
+        if (d.x < -d.size * 0.5) d.x = bounds.width + d.size * 0.5;
+        if (d.y < -d.size * 0.5) d.y = bounds.height + d.size * 0.5;
+        if (d.x > bounds.width + d.size * 0.5) d.x = -d.size * 0.5;
+        if (d.y > bounds.height + d.size * 0.5) d.y = -d.size * 0.5;
+
+        // slightly wobble velocity
+        d.vx += (Math.random() - 0.5) * 0.02;
+        d.vy += (Math.random() - 0.5) * 0.02;
+
+        item.el.style.transform = `translate(${d.x - d.size / 2}px, ${d.y - d.size / 2}px)`;
+      });
+      rafRef.current = requestAnimationFrame(step);
+    }
+
+    if (!prefersReduced) rafRef.current = requestAnimationFrame(step);
+
+    // cleanup
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      blobsRef.current.forEach(b => b.el.remove());
+      blobsRef.current = [];
+    };
+  }, [blobCount, blur, maxSize, prefersReduced]);
+
+  // wrapper styles applied inline to allow large blur and black background
+  return (
+    <div
+      ref={containerRef}
+      aria-hidden
+      className="absolute inset-0 -z-20"
+      style={{
+        background: '#000000',
+        overflow: 'hidden',
+        filter: `blur(${blur}px)`,
+      }}
+    />
+  );
+}
 
 function App() {
   const [statusMessage, setStatusMessage] = useState("");
@@ -10,10 +141,26 @@ function App() {
   const inputRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [students, setStudents] = useState([]);
+  const [uploads, setUploads] = useState([]);
+
+  // Firestore listeners
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "students"), (snap) => {
+      setStudents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    getDocs(collection(db, "uploads")).then(snap => {
+      setUploads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+  }, []);
+
   const handleImageChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const tempUrl = URL.createObjectURL(file);
     setPreviewUrl(tempUrl);
     setStatusMessage("Preview ready. Uploading...");
@@ -23,7 +170,8 @@ function App() {
     try {
       const timestamp = Math.floor(Date.now() / 1000);
       const folder = "captured_images";
-      const publicId = `preprocessed_${timestamp}_${Math.random().toString(36).slice(2, 6)}`;
+      const shortId = Math.random().toString(36).slice(2, 6);
+      const publicId = `preprocessed_${timestamp}_${shortId}`;
 
       const sigRes = await fetch(
         `${import.meta.env.VITE_SIGNATURE_API}/sign-uploads?timestamp=${timestamp}&folder=${folder}&public_id=${publicId}`
@@ -53,150 +201,153 @@ function App() {
         imageUrl: cloudData.secure_url,
         uploadedAt: new Date().toISOString(),
         folder: folder,
-        status: "pending",
+        status: "pending"
       });
 
-      setStatusMessage("Firestore updated successfully.");
-      setIsLoading(false);
+      setStatusMessage("Firestore updated. Waiting for processing...");
+
+      const processedUrl = `https://res.cloudinary.com/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload/processed_images/processed_${timestamp}_${shortId}.jpg`;
+      setTimeout(() => {
+        setStatusMessage("Processed image might be ready below 👇");
+        setStatusType("info");
+        setPreviewUrl(processedUrl);
+        setIsLoading(false);
+      }, 30000);
     } catch (error) {
-      console.error("Upload error:", error);
       setIsLoading(false);
       setStatusMessage(`Upload failed: ${error.message}`);
       setStatusType("error");
     }
   };
 
-  const openCamera = () => {
-    inputRef.current?.click();
-  };
-
+  const openCamera = () => inputRef.current?.click();
   const handleDrop = (event) => {
     event.preventDefault();
     setIsDragging(false);
     const file = event.dataTransfer.files?.[0];
-    if (file) {
-      handleImageChange({ target: { files: [file] } });
-    }
+    if (file) handleImageChange({ target: { files: [file] } });
+  };
+
+  const getAttendanceForImage = (imgUrl, processedUrl) => {
+    let present = [], absent = [], unknown = [];
+    students.forEach(student => {
+      if (Array.isArray(student.attendance)) {
+        const found = student.attendance.find(att =>
+          att.image_url === imgUrl || att.processed_image_url === processedUrl
+        );
+        if (found) {
+          if (found.present === true) present.push(student.name);
+          else if (found.present === false) absent.push(student.name);
+          else unknown.push(student.name);
+        }
+      }
+    });
+    return { present, absent, unknown };
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-[#020024] via-[#090979] to-[#00D4FF]">
-      {/* Upload Box */}
-      <div
-        className="w-full max-w-2xl p-6 sm:p-10 rounded-3xl bg-black/40 backdrop-blur-md shadow-2xl shadow-[#020024] flex flex-col items-center gap-6 transition-all duration-300"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-      >
-        {/* Camera Icon & Header */}
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="bg-purple-500/20 p-4 rounded-full">
-            <svg
-              className="w-10 h-10 text-[#00D4FF]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 7h2l2-3h10l2 3h2a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V9a2 2 0 012-2z"
-              />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-semibold text-white">Upload Your Photo</h2>
-          <p className="text-sm text-gray-300">Click to capture or drag & drop an image here</p>
-        </div>
+    <div className="relative min-h-screen px-4 py-6 bg-black overflow-y-auto text-white">
+      {/* Animated, blurred blobs background (red / blue / yellow) */}
+      <AnimatedBlobs blobCount={7} blur={120} maxSize={800} />
 
-        {/* Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
-          <button
-            onClick={openCamera}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-2 bg-[#00D4FF] hover:bg-[#00D4FF]/30 text-white font-medium px-6 py-3 rounded-3xl shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-          >
-            {isLoading && (
-              <svg
-                className="animate-spin h-5 w-5 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                />
-              </svg>
-            )}
-            {isLoading ? "Uploading..." : "Capture Image"}
-          </button>
+      {/* small subtle star / grain overlay to add depth */}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-black/90 to-black/80" />
 
-          <p className="text-sm text-[#00D4FF] italic hover:underline hover:text-[#00D4FF]/30 transition-all duration-200 text-center">
-            or drag and drop
-          </p>
-        </div>
-
-        {/* Hidden File Input */}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleImageChange}
-        />
-
-        {/* Image Preview */}
-        {previewUrl && (
-          <div className="w-full border border-dashed border-[#00D4FF] rounded-xl p-3 bg-white/5">
-            <img
-              src={previewUrl}
-              alt="Preview"
-              className="rounded-xl w-full max-h-80 object-cover shadow-md border border-white/10"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Toast Popup */}
-      {statusMessage && (
+      {/* Upload */}
+      <Collapsible title="📤 Image Upload" defaultOpen={true}>
         <div
-          className={`fixed z-50 px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all duration-300 flex items-center gap-3
-            bg-opacity-90
-            ${
-              statusType === "success"
-                ? "bg-green-600 text-white"
-                : statusType === "error"
-                ? "bg-red-600 text-white"
-                : "bg-yellow-500 text-black"
-            }
-            top-4 left-1/2 -translate-x-1/2
-            sm:top-auto sm:bottom-6 sm:left-6 sm:translate-x-0
-          `}
+          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`p-6 rounded-3xl border-2 border-dashed transition-all duration-300 
+            ${isDragging ? "border-[#00D4FF] bg-[#00D4FF]/10" : "border-white/20 bg-white/5"} 
+            backdrop-blur-md`}
         >
-          {/* SVG Icon */}
-          {statusType === "success" && (
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2l4 -4M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10s-4.48 10 -10 10z" />
-            </svg>
-          )}
-          {statusType === "error" && (
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 2a10 10 0 110 20a10 10 0 010-20zm0 0v4m0 8v4" />
-            </svg>
-          )}
-          {statusType === "info" && (
-            <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20a10 10 0 010-20z" />
-            </svg>
-          )}
+          <div className="flex flex-col items-center gap-3 text-center">
+            <button
+              onClick={openCamera}
+              disabled={isLoading}
+              className="px-8 py-3 rounded-full bg-gradient-to-r from-[#00D4FF] to-[#090979] text-white font-medium shadow-lg hover:shadow-[#00D4FF]/40 transition disabled:opacity-50"
+            >
+              {isLoading ? "Uploading..." : "Capture / Upload Image"}
+            </button>
+            <p className="text-sm text-white/80">or drag & drop here</p>
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+          </div>
 
-          <span>{statusMessage}</span>
+          {previewUrl && (
+            <div className="mt-5">
+              <img src={previewUrl} alt="Preview" className="rounded-xl shadow-xl border border-white/10 max-h-80 mx-auto" />
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Toast */}
+        {statusMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`fixed z-50 px-6 py-3 rounded-full text-sm font-medium shadow-lg 
+              ${statusType === "success" ? "bg-green-500/90" : statusType === "error" ? "bg-red-500/90" : "bg-yellow-500/90"} 
+              text-white top-6 left-1/2 -translate-x-1/2`}
+          >
+            {statusMessage}
+          </motion.div>
+        )}
+      </Collapsible>
+
+      {/* Uploads */}
+      <Collapsible title="🖼 Uploaded Images" defaultOpen={true}>
+        {uploads.length === 0 ? (
+          <p className="text-white/80">No uploads yet</p>
+        ) : (
+          uploads.map(upload => {
+            const att = getAttendanceForImage(upload.imageUrl, upload.processed_image_url);
+            return (
+              <Collapsible key={upload.id} title={upload.id}>
+                <div className="flex gap-4 flex-wrap">
+                  {upload.imageUrl && <img src={upload.imageUrl} alt="Original" className="w-24 rounded-xl shadow-lg" />}
+                  {upload.processed_image_url && <img src={upload.processed_image_url} alt="Processed" className="w-24 rounded-xl shadow-lg" />}
+                </div>
+                <p className="mt-2 text-white/80">Headcount: {upload.headcount ?? "-"}</p>
+                <p className="text-white/80">Status: {upload.status ?? "-"}</p>
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {att.present.map(name => <span key={name} className="px-3 py-1 rounded-full bg-green-500/20 text-green-300">{name}</span>)}
+                  {att.absent.map(name => <span key={name} className="px-3 py-1 rounded-full bg-red-500/20 text-red-300">{name}</span>)}
+                  {att.unknown.map(name => <span key={name} className="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-300">{name}</span>)}
+                </div>
+              </Collapsible>
+            );
+          })
+        )}
+      </Collapsible>
+
+      {/* Students */}
+      <Collapsible title="👨‍🎓 Students & History">
+        {students.length === 0 ? (
+          <p className="text-white/80">No students found</p>
+        ) : (
+          students.map(student => (
+            <Collapsible key={student.id} title={`${student.name} (${student.class})`}>
+              {Array.isArray(student.attendance) && student.attendance.length === 0 ? (
+                <p className="text-white/60">No attendance data</p>
+              ) : (
+                student.attendance.map((rec, i) => (
+                  <Collapsible
+                    key={i}
+                    title={`${new Date(rec.timestamp).toLocaleString()} - ${rec.present ? "Present" : rec.present === false ? "Absent" : "Unknown"}`}
+                  >
+                    <div className="flex gap-4">
+                      {rec.image_url && <img src={rec.image_url} alt="Original" className="w-20 rounded-xl" />}
+                      {rec.processed_image_url && <img src={rec.processed_image_url} alt="Processed" className="w-20 rounded-xl" />}
+                    </div>
+                  </Collapsible>
+                ))
+              )}
+            </Collapsible>
+          ))
+        )}
+      </Collapsible>
     </div>
   );
 }

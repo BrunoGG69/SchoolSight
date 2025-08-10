@@ -5,14 +5,14 @@ from scipy.spatial.distance import cosine
 from backend.face_recognition_utils.load_detectors import load_models
 import simdjson
 
-THRESHOLD = 0.6
+THRESHOLD = 0.55
 ENROLLMENTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'enrollments')
 ENROLLMENTS_DIR = os.path.abspath(ENROLLMENTS_DIR)
 yolo, arcface, _ = load_models()
 
 def load_enrollments():
+    parser = simdjson.Parser()
     known_faces = []
-    parser = simdjson.Parser()  # NEW
 
     for file in os.listdir(ENROLLMENTS_DIR):
         if file.endswith(".json"):

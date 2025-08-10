@@ -3,7 +3,6 @@ from datetime import datetime
 import cv2
 import cloudinary.uploader
 import requests
-import uuid
 from google.cloud import firestore
 from face_recognition_utils.recognize import recognize_faces_from_image
 from firebase_utils import db
@@ -44,10 +43,14 @@ for items in pending_images:
 
     print(f"Processing: {items_id} | URL: {image_url}")
 
+    # Extract filename and timestamp
+    image_filename = os.path.basename(image_url)
+    timestamp = image_filename.replace("preprocessed_", "").replace(".jpg", "")  # Extract timestamp
+    processed_filename = image_filename.replace("preprocessed_", "processed_")
+
     # Download image
+    local_path = os.path.join(tempStore, image_filename)
     response = requests.get(image_url)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    local_path = os.path.join(tempStore, f"{uuid.uuid4()}.jpg")
     with open(local_path, 'wb') as f:
         f.write(response.content)
     print(f"Downloaded to: {local_path}")
@@ -57,11 +60,16 @@ for items in pending_images:
     print(f"[🧠] Headcount: {headcount} | Known: {known_ids} | Unknown: {unknowns}")
 
     # Save processed image
-    processed_path = os.path.join(tempStore, f"processed_{timestamp}.jpg")
+    processed_path = os.path.join(tempStore, processed_filename)
     cv2.imwrite(processed_path, image_with_boxes)
 
     # Upload processed image to Cloudinary
-    upload_result = cloudinary.uploader.upload(processed_path, folder="processed_images", public_id=f"processed_{timestamp}")
+    public_id = processed_filename.replace(".jpg", "")
+    upload_result = cloudinary.uploader.upload(
+        processed_path,
+        folder="processed_images",
+        public_id=public_id
+    )
     processed_image_url = upload_result.get("secure_url")
 
     # Log Attendance
