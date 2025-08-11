@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* stronger blur helper (tailwind may not include blur-3xl by default) */
+.blur-3xl {
+  filter: blur(72px);
+}
+.backdrop-blur-4xl {
+  backdrop-filter: blur(98px);
+  -webkit-backdrop-filter: blur(98px); /* for Safari */
+}
+
+
+/* blob float animation */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(60px, -40px) scale(1.06);
+  }
+  66% {
+    transform: translate(-60px, 30px) scale(0.98);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+/* apply animation (longer for big blobs so they feel heavy) */
+.animate-blob {
+  animation: blob 14s ease-in-out infinite;
+}
+
+/* delays used in the examples */
+.animation-delay-1000 { animation-delay: 1s; }
+.animation-delay-1500 { animation-delay: 1.5s; }
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-2500 { animation-delay: 2.5s; }
+.animation-delay-3000 { animation-delay: 3s; }
+.animation-delay-3500 { animation-delay: 3.5s; }
+.animation-delay-4000 { animation-delay: 4s; }
+.animation-delay-5000 { animation-delay: 5s; }
