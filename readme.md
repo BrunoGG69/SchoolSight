@@ -1,0 +1,2 @@
+# SchoolSight - Automated Attendance
+
