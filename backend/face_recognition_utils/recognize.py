@@ -3,29 +3,38 @@ import cv2
 import numpy as np
 from scipy.spatial.distance import cosine
 from backend.face_recognition_utils.load_detectors import load_models
-import simdjson
+from backend.firebase_utils import db
 
 THRESHOLD = 0.6
 ENROLLMENTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'enrollments')
 ENROLLMENTS_DIR = os.path.abspath(ENROLLMENTS_DIR)
 yolo, arcface, _ = load_models()
 
+
 def load_enrollments():
     known_faces = []
-    parser = simdjson.Parser()  # NEW
 
-    for file in os.listdir(ENROLLMENTS_DIR):
-        if file.endswith(".json"):
-            file_path = os.path.join(ENROLLMENTS_DIR, file)
-            with open(file_path, "rb") as f:
-                data = parser.parse(f.read()).as_dict()
-                for face_embeddings in data["encodings"]:
-                    known_faces.append({
-                        "name": data["name"],
-                        "class": data["class"],
-                        "student_id": data["student_id"],
-                        "embedding": face_embeddings
-                    })
+    students_ref = db.collection("students")
+    students_docs = students_ref.stream()
+
+    for student_doc in students_docs:
+        student_data = student_doc.to_dict()
+        student_id = student_doc.id
+        name = student_data.get("name")
+        class_name = student_data.get("class")
+
+        encodings_ref = student_doc.reference.collection("encodings").stream()
+        for enc_doc in encodings_ref:
+            enc_data = enc_doc.to_dict()
+            embedding = enc_data.get("vector")
+            if embedding:
+                known_faces.append({
+                    "name": name,
+                    "class": class_name,
+                    "student_id": student_id,
+                    "embedding": embedding
+                })
+
     return known_faces
 
 def recognize_faces_from_image(image_path):

@@ -26,7 +26,7 @@ pending_images = image_uploads.where("status", "==", "pending").stream()
 pending_images = list(pending_images)
 
 if not pending_images:
-    print("[✅] No pending uploads found.")
+    print("No pending uploads found.")
     exit()
 
 # Prepare local directories
@@ -54,7 +54,7 @@ for items in pending_images:
 
     # Start the face recognition process
     image_with_boxes, headcount, known_ids, unknowns = recognize_faces_from_image(local_path)
-    print(f"[🧠] Headcount: {headcount} | Known: {known_ids} | Unknown: {unknowns}")
+    print(f"Headcount: {headcount} | Known: {known_ids} | Unknown: {unknowns}")
 
     # Save processed image
     processed_path = os.path.join(tempStore, f"processed_{timestamp}.jpg")
