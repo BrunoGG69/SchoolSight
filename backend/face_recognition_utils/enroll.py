@@ -1,94 +1,130 @@
-from backend.face_recognition_utils.utils import save_embeddings
-import cv2
-import numpy as np
 import os
+import cv2
 import time
+import numpy as np
+from backend.firebase_utils import db
+from backend.face_recognition_utils.utils import save_embeddings
 
-def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=18):
-    cap = cv2.VideoCapture(2)
+
+def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cycles=2, captures_per_cycle=100):
+    cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("[ERROR] Could not open webcam.")
         return
 
-    embeddings = []
-    current_stage = 0
-    capturing = False
-    total_stages = required // 3
+    all_embeddings = []
+    cycle = 1
 
-    print(f"You're about to capture {required} embeddings in {total_stages} stages.")
-    print("Each stage captures 3 encodings.")
-    print("Press 'c' to start capturing each stage. Press 'q' to quit anytime.")
+    print(f"Starting enrollment for {name} ({student_id})")
+    print(f"You will go through {total_cycles} capture cycles.")
+    print("Press 'c' to start capture when ready, 'q' to quit.")
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("[ERROR] Failed to grab frame.")
-            break
+    while cycle <= total_cycles:
+        embeddings = []
+        frame_count = 0
+        capturing = False
 
-        frame_display = frame.copy()
+        print(f"\nCycle {cycle}/{total_cycles}: Get ready...")
+        print("➡️ Move your head slowly in all directions — left, right, up, down.")
+        print("Press 'c' to start automatic capture.")
 
-        if capturing:
-            results = yolo(frame, conf=0.3)[0]
-            faces = arcface.get(frame)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("[ERROR] Frame capture failed.")
+                break
 
-            if results.boxes is not None:
-                for det in results.boxes.data:
-                    x1, y1, x2, y2 = map(int, det[:4].tolist())
+            frame_display = frame.copy()
 
-                    for face in faces:
-                        fx1, fy1, fx2, fy2 = map(int, face.bbox)
-                        if abs(fx1 - x1) < 30 and abs(fy1 - y1) < 30:
-                            emb = face.embedding
-                            embeddings.append(np.array(emb).flatten().tolist())
+            # Show info on preview
+            cv2.putText(frame_display, f"Cycle {cycle}/{total_cycles}", (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+            if not capturing:
+                cv2.putText(frame_display, "Press 'C' to start capture | 'Q' to quit",
+                            (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+            else:
+                cv2.putText(frame_display, f"Capturing... {frame_count}/{captures_per_cycle}",
+                            (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-                            cv2.rectangle(frame_display, (fx1, fy1), (fx2, fy2), (0, 255, 0), 2)
-                            cv2.putText(frame_display,
-                                        f"Captured {len(embeddings)} / {required}",
-                                        (fx1, fy1 - 10), cv2.FONT_HERSHEY_SIMPLEX,
-                                        0.8, (0, 255, 0), 2)
-                            time.sleep(1)  # Delay between each capture
+            cv2.imshow("Enrollment Preview", frame_display)
+            key = cv2.waitKey(1) & 0xFF
+
+            # Start capture
+            if key == ord('c') and not capturing:
+                print(f"[INFO] Starting Cycle {cycle} capture...")
+                capturing = True
+                time.sleep(1)
+
+            # Quit
+            if key == ord('q'):
+                print("[INFO] Quitting enrollment.")
+                cap.release()
+                cv2.destroyAllWindows()
+                return
+
+            if capturing:
+                results = yolo(frame, conf=0.3)[0]
+                faces = arcface.get(frame)
+
+                if results.boxes is not None and faces:
+                    for face in faces[:1]:
+                        emb = face.embedding
+                        embeddings.append(np.array(emb).flatten().tolist())
+                        frame_count += 1
+
+                        # Display progress
+                        cv2.rectangle(frame_display, (50, 50), (350, 120), (0, 255, 0), 2)
+                        cv2.putText(frame_display, f"Captured: {frame_count}/{captures_per_cycle}",
+                                    (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                        cv2.imshow("Enrollment Preview", frame_display)
+                        cv2.waitKey(1)
+
+                        if frame_count >= captures_per_cycle:
+                            capturing = False
                             break
 
-            if len(embeddings) >= (current_stage + 1) * 3:
-                capturing = False
-                current_stage += 1
+                # Gentle delay between frames
+                time.sleep(0.25)
 
-                print(f"[INFO] Captured {len(embeddings)} encodings so far.")
-                if len(embeddings) < required:
-                    print("[NEXT STEP] Please change your pose or angle.")
-                    print("👉 Press 'n' to capture next set of 3 embeddings.")
-                else:
-                    print("[INFO] All required embeddings captured.")
-                    break
+            # Stop when enough frames collected
+            if frame_count >= captures_per_cycle:
+                break
 
-        cv2.putText(frame_display, f"Stage: {current_stage+1}/{total_stages} | Captured: {len(embeddings)}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(frame_display, "Press 'c' to capture | 'n' for next stage | 'q' to quit",
-                    (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+        all_embeddings.extend(embeddings)
+        print(f"[INFO] Cycle {cycle} complete with {len(embeddings)} embeddings.")
 
-        cv2.imshow("Enroll Student", frame_display)
-        key = cv2.waitKey(1) & 0xFF
+        if cycle < total_cycles:
+            print("\nNow step back and reposition yourself.")
+            print("Press 'c' to start next cycle or 'q' to quit.")
+            time.sleep(1)
 
-        if key == ord('c') and not capturing:
-            capturing = True
-            print(f"[INFO] Stage {current_stage+1}: Starting capture...")
-        elif key == ord('n') and not capturing and len(embeddings) == current_stage * 3:
-            print("[INFO] Get ready... Starting in 2 seconds.")
-            time.sleep(2)
-            capturing = True
-        elif key == ord('q'):
-            break
+        cycle += 1
 
     cap.release()
     cv2.destroyAllWindows()
 
-    if embeddings:
+    if all_embeddings:
+        # Save locally
         enrollment_dir = os.path.join(os.path.dirname(__file__), '..', 'enrollments')
         enrollment_dir = os.path.abspath(enrollment_dir)
-        path = save_embeddings(student_id, name, student_class, embeddings, enrollment_dir)
-        print(f"[SUCCESS] Enrolled {name} ({student_id}) with {len(embeddings)} embeddings.")
-        print(f"[INFO] Saved to {path}")
+        save_path = save_embeddings(student_id, name, student_class, all_embeddings, enrollment_dir)
+
+        # Upload to Firestore
+        student_ref = db.collection("students").document(student_id)
+        student_ref.set({
+            "name": name,
+            "class": student_class
+        })
+
+        encodings_ref = student_ref.collection("encodings")
+        for idx, emb in enumerate(all_embeddings, start=1):
+            enc_id = f"enc_{idx}"
+            encodings_ref.document(enc_id).set({"vector": emb})
+
+        print(f"\n✅ Enrollment complete for {name} ({student_id})")
+        print(f"📁 Local file saved to: {save_path}")
+        print(f"🔥 {len(all_embeddings)} embeddings uploaded to Firestore.")
     else:
         print("[ERROR] No embeddings captured.")
 
@@ -96,49 +132,5 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, required=
         "student_id": student_id,
         "name": name,
         "class": student_class,
-        "embeddings": embeddings
+        "embeddings": all_embeddings
     }
-
-def enroll_from_images(yolo, arcface, student_id, name, student_class, image_dir):
-    if not os.path.exists(image_dir):
-        print(f"[ERROR] Image directory '{image_dir}' not found.")
-        return
-
-    image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)
-                   if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-
-    if len(image_files) < 3:
-        print("[ERROR] At least 3 images required.")
-        return
-
-    embeddings = []
-
-    for img_path in sorted(image_files)[:3]:
-        img = cv2.imread(img_path)
-        if img is None:
-            print(f"[WARNING] Couldn't read image: {img_path}")
-            continue
-
-        results = yolo(img, conf=0.3)[0]
-        faces = arcface.get(img)
-
-        if not faces:
-            print(f"[WARNING] No faces found in {img_path}")
-            continue
-
-        for face in faces[:3]:
-            emb = face.embedding
-            embeddings.append(np.array(emb).flatten().tolist())
-
-        print(f"[INFO] Collected embeddings from {img_path} | Total: {len(embeddings)}")
-
-    if embeddings:
-        enrollment_dir = os.path.join(os.path.dirname(__file__), '..', 'enrollments')
-        enrollment_dir = os.path.abspath(enrollment_dir)
-        path = save_embeddings(student_id, name, student_class, embeddings, enrollment_dir)
-        print(f"[SUCCESS] Enrolled {name} ({student_id}) with {len(embeddings)} embeddings.")
-        print(f"[INFO] Saved to {path}")
-    else:
-        print("[ERROR] No embeddings captured.")
-
-
