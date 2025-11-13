@@ -1,7 +1,2 @@
-# SchoolSight - Automated Facial Recognition Attendance System with Cloud Integration
-
-- SchoolSight is a **cloud-integrated attendance system** that **leverages facial recognition** to **automate student presence marking**. 
-- Using a **web-based interface**, teachers can **capture or upload group images of students**, which are **processed via machine learning models** to identify individuals and mark attendance. 
-- Attendance records are **securely stored in a database** and **accessible through a history dashboard**. 
-- This system **eliminates manual roll calls**, **improves efficiency**, and **ensures accurate**, **real-time recordkeeping** with scalable cloud support.
-
+# SchoolSight - Automated Attendance
+<img width="1920" height="1080" alt="SchoolSight" src="https://github.com/user-attachments/assets/488fc0df-0eca-4882-9c54-e88605da102e" />
