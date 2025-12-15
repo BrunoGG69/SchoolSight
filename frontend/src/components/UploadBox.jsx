@@ -45,7 +45,6 @@ function UploadBox({
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
         >
-            {/* Single input for all uploads */}
             <input
                 ref={inputRef}
                 type="file"

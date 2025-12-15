@@ -5,7 +5,6 @@ import numpy as np
 from backend.firebase_utils import db
 from backend.face_recognition_utils.utils import save_embeddings
 
-
 def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cycles=2, captures_per_cycle=100):
     cap = cv2.VideoCapture(0)
 
@@ -26,7 +25,7 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cyc
         capturing = False
 
         print(f"\nCycle {cycle}/{total_cycles}: Get ready...")
-        print("➡️ Move your head slowly in all directions — left, right, up, down.")
+        print("Move your head slowly in all directions — left, right, up, down.")
         print("Press 'c' to start automatic capture.")
 
         while True:
@@ -37,7 +36,7 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cyc
 
             frame_display = frame.copy()
 
-            # Show info on preview
+            # Show info on preview window
             cv2.putText(frame_display, f"Cycle {cycle}/{total_cycles}", (20, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
             if not capturing:
@@ -73,7 +72,7 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cyc
                         embeddings.append(np.array(emb).flatten().tolist())
                         frame_count += 1
 
-                        # Display progress
+                        # Display progress of stuff
                         cv2.rectangle(frame_display, (50, 50), (350, 120), (0, 255, 0), 2)
                         cv2.putText(frame_display, f"Captured: {frame_count}/{captures_per_cycle}",
                                     (60, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
@@ -105,7 +104,7 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cyc
     cv2.destroyAllWindows()
 
     if all_embeddings:
-        # Save locally
+        # Save locally for records
         enrollment_dir = os.path.join(os.path.dirname(__file__), '..', 'enrollments')
         enrollment_dir = os.path.abspath(enrollment_dir)
         save_path = save_embeddings(student_id, name, student_class, all_embeddings, enrollment_dir)
@@ -122,11 +121,11 @@ def enroll_from_webcam(yolo, arcface, student_id, name, student_class, total_cyc
             enc_id = f"enc_{idx}"
             encodings_ref.document(enc_id).set({"vector": emb})
 
-        print(f"\n✅ Enrollment complete for {name} ({student_id})")
-        print(f"📁 Local file saved to: {save_path}")
-        print(f"🔥 {len(all_embeddings)} embeddings uploaded to Firestore.")
+        print(f"\nCONFIRM: Enrollment complete for {name} ({student_id})")
+        print(f"FILE: Local file saved to: {save_path}")
+        print(f"FIREBASE: {len(all_embeddings)} embeddings uploaded to Firestore.")
     else:
-        print("[ERROR] No embeddings captured.")
+        print("ERROR: No embeddings captured.")
 
     return {
         "student_id": student_id,

@@ -26,9 +26,9 @@ const formatDateInWords = (val) => {
     try {
         const date = val instanceof Date ? val : new Date(val);
         return date.toLocaleDateString("en-US", {
-            weekday: "long",     // Monday, Tuesday, etc.
+            weekday: "long",
             year: "numeric",
-            month: "long",       // January, February, etc.
+            month: "long",
             day: "numeric",
         }) + ", " + date.toLocaleTimeString("en-US", {
             hour: "2-digit",
@@ -39,7 +39,6 @@ const formatDateInWords = (val) => {
         return "—";
     }
 };
-
 
 export default function HistoryPage() {
     const [uploads, setUploads] = useState([]);

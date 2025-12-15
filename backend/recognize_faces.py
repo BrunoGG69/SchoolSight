@@ -76,6 +76,7 @@ for items in pending_images:
 
         doc_ref.update({
             "attendance": firestore.ArrayUnion([{
+                "id": items_id,
                 "timestamp": timestamp_for_now,
                 "present": True,
                 "image_url": image_url,
@@ -100,6 +101,7 @@ for items in pending_images:
                 if sid not in known_ids_str:
                     db.collection("students").document(sid).update({
                         "attendance": firestore.ArrayUnion([{
+                            "id": items_id,
                             "timestamp": timestamp_for_now,
                             "present": False,
                             "image_url": image_url,
