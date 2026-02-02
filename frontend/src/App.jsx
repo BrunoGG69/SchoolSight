@@ -769,34 +769,28 @@ export default function CombinedPage() {
             </div>
         )}
 
-        <div className="relative z-20 px-6 py-8 md:py-5 border-b border-white/10">
-            <div className="max-w-7xl mx-auto"><h1 className="text-4xl font-bold text-white mb-2">SchoolSight</h1><p
-                className="text-gray-300 text-lg">Attendance Management System</p></div>
+        <div className="relative z-20 px-6 py-8 md:py-5 border-b border-white/10 bg-black/25 backdrop-blur-xl">
+            <div className="max-w-7xl mx-auto flex items-center gap-4">
+                <img
+                    src="/logo.png"
+                    alt="SchoolSight logo"
+                    className="h-14 w-auto object-contain"
+                />
+                <div>
+                    <h1 className="text-4xl font-bold text-white leading-tight">
+                        SchoolSight
+                    </h1>
+                    <p className="text-gray-300 text-lg leading-tight">
+                        Attendance Management System
+                    </p>
+                </div>
+            </div>
         </div>
+
 
         <div className="relative z-20 max-w-7xl mx-auto px-8 py-8">
             <div className="flex flex-col lg:flex-row gap-6">
                 <div className="lg:w-64 flex-shrink-0">
-                    {/*<div className="*/}
-                    {/*      flex justify-center gap-4 overflow-x-auto pb-2*/}
-                    {/*      lg:block lg:space-y-4 lg:overflow-visible*/}
-                    {/*       top-8*/}
-                    {/*    ">*/}
-                    {/*    <GlassCard className="active:scale-95 transition-transform duration-300">*/}
-                    {/*        <div className="text-sm text-gray-300 mb-1">Total Uploads</div>*/}
-                    {/*        <div className="text-4xl font-bold text-cyan-400">{uploads.length}</div>*/}
-                    {/*    </GlassCard>*/}
-                    {/*    <GlassCard className="active:scale-95 transition-transform duration-300">*/}
-                    {/*        <div className="text-sm text-gray-300 mb-1">Students</div>*/}
-                    {/*        <div className="text-4xl font-bold text-cyan-400">{students.length}</div>*/}
-                    {/*    </GlassCard>*/}
-                    {/*    <GlassCard className="active:scale-95 transition-transform duration-300">*/}
-                    {/*        <div className="text-sm text-gray-300 mb-1">Last Processed</div>*/}
-                    {/*        <div*/}
-                    {/*            className="text-xl text-cyan-400 mt-2 font-bold">{uploads[0] ? formatDateInWords(uploads[0].uploadedAt) : '—'}</div>*/}
-                    {/*    </GlassCard>*/}
-                    {/*</div>*/}
-
                     {/* Desktop stats (cards) */}
                     <div
                         className="
@@ -846,8 +840,6 @@ export default function CombinedPage() {
                         </div>
 
                     </div>
-
-
                 </div>
 
                 <div className="flex-1">

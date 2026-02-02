@@ -8,8 +8,10 @@ import cv2
 import cloudinary
 import cloudinary.uploader
 import requests
-from google.cloud import firestore
 from dotenv import load_dotenv
+from google.cloud import firestore
+from google.cloud.firestore_v1 import FieldFilter
+from tqdm import tqdm
 
 from face_recognition_utils.recognize import recognize_faces_from_image
 from firebase_utils import db
@@ -28,9 +30,8 @@ TEMP_DIR.mkdir(exist_ok=True)
 UPLOADS_COLLECTION = db.collection("uploads")
 STUDENT_COLLECTION = db.collection("students")
 
-
 def get_pending_uploads():
-    return list(UPLOADS_COLLECTION.where("status", "==", "pending").stream())
+    return list(UPLOADS_COLLECTION.where(filter=FieldFilter("status", "==", "pending")).stream())
 
 def download_image(session: requests.Session, url: str, dest_dir: Path) -> Path:
     response = session.get(url, timeout=30)
@@ -120,7 +121,7 @@ def mark_attendance(
 
     print(f"INFO: Recognized class: {student_class}")
 
-    students_in_class = STUDENT_COLLECTION.where("class", "==", student_class).stream()
+    students_in_class = STUDENT_COLLECTION.where(filter=FieldFilter("class", "==", student_class)).stream()
     known_ids_str = set(str(sid) for sid in known_ids)
 
     absent_batch = db.batch()
@@ -211,7 +212,7 @@ def process_pending_uploads() -> None:
             try:
                 # 1. Download
                 local_path = download_image(session, image_url, TEMP_DIR)
-                print(f"INFO: Downloaded to: {local_path}")
+                print(f"INFO: Downloaded to: {local_path.as_posix()}")
 
                 # 2. Face recognition
                 image_with_boxes, headcount, known_ids, unknowns = process_image(local_path)
