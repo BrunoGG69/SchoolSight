@@ -25,7 +25,14 @@ export async function handleImageChangeHelper(
     const sigRes = await fetch(
       `${import.meta.env.VITE_SIGNATURE_API}/sign-uploads?timestamp=${timestamp}&folder=${folder}&public_id=${publicId}`
     );
-    const sigData = await sigRes.json();
+
+    const sigText = await sigRes.text();
+    let sigData;
+    try {
+      sigData = JSON.parse(sigText);
+    } catch {
+      throw new Error(`Signature server returned invalid response: ${sigText.slice(0, 200)}`);
+    }
     if (!sigRes.ok) throw new Error(sigData.error || "Failed to get signature");
 
     const formData = new FormData();
@@ -40,7 +47,14 @@ export async function handleImageChangeHelper(
       `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
       { method: "POST", body: formData }
     );
-    const cloudData = await cloudRes.json();
+
+    const cloudText = await cloudRes.text();
+    let cloudData;
+    try {
+      cloudData = JSON.parse(cloudText);
+    } catch {
+      throw new Error(`Cloudinary returned invalid response: ${cloudText.slice(0, 200)}`);
+    }
     if (!cloudRes.ok) throw new Error(cloudData.error?.message || "Cloudinary upload failed");
 
     setStatusMessage("Uploaded to Cloudinary.");
